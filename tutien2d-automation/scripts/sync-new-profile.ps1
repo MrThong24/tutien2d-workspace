@@ -23,7 +23,7 @@ function Invoke-ProfileInstaller([string]$ScriptName, [string]$Version) {
 
 if (-not (Test-Path -LiteralPath $node -PathType Leaf)) { throw 'Node.js was not found.' }
 Invoke-ProfileInstaller 'install-auto-total-0.9.17.ps1' '0.9.17'
-Invoke-ProfileInstaller 'install-auto-quai-2.0.28.ps1' '2.0.28'
+Invoke-ProfileInstaller 'install-auto-quai-2.0.29.ps1' '2.0.29'
 
 $readyScript = Join-Path $root 'scripts\ensure-profile-ready.cjs'
 & $node $readyScript $ProfileNumber

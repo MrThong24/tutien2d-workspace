@@ -1,4 +1,7 @@
-if (window.TuTienStoneFarm) return;
+if (window.TuTienStoneFarm?.version === '2.0.29') return;
+if (window.TuTienStoneFarm) {
+  try { window.TuTienStoneFarm.stop?.('Replacing an older Auto quái version.'); } catch (_) {}
+}
 const access = A.createGameAccess(window);
 const entries = [];
 const logger = { add(event, data = {}) { entries.push({ at: new Date().toISOString(), event, data }); if (entries.length > 400) entries.shift(); } };
@@ -49,8 +52,8 @@ function tick() {
     try { sessionStorage.removeItem(resumeKey); sessionStorage.removeItem(mapKey); sessionStorage.removeItem(zoneKey); } catch (_) {}
   }
 }
-window.TuTienStoneFarm = Object.freeze({ version: '2.0.28', start, stop, status, maps: availableMaps,
-  report: () => ({ schema: 'tutien2d-combat-pipeline-v1', version: '2.0.28', status: status(), access: access.diagnostics(), events: entries.slice() }) });
+window.TuTienStoneFarm = Object.freeze({ version: '2.0.29', start, stop, status, maps: availableMaps,
+  report: () => ({ schema: 'tutien2d-combat-pipeline-v1', version: '2.0.29', status: status(), access: access.diagnostics(), events: entries.slice() }) });
 function manual(event) { if (farm.status().running && event.isTrusted) stop('Đã dừng vì bạn thao tác trong game.'); }
 document.addEventListener('pointerdown', manual, true);
 window.addEventListener('keydown', event => { if (/^(Escape|Key[WASDEQTF]|Arrow(Up|Down|Left|Right))$/.test(event.code)) manual(event); }, true);

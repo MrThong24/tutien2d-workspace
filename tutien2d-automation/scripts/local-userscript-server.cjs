@@ -3,7 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const files = new Map([
   ['/auto-total.user.js', 'tutien2d-auto-tong-0.9.17.user.js'],
-  ['/auto-quai.user.js', 'tutien2d-auto-quai-2.0.28.user.js']
+  ['/auto-quai.user.js', 'tutien2d-auto-quai-2.0.29.user.js']
 ]);
 http.createServer((req, res) => {
   const file = files.get(req.url);
