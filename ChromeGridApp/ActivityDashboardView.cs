@@ -87,6 +87,7 @@ namespace ChromeGridApp
                 Label("Cổng:"), gate,
                 Check("Đi độc lập (không lập tổ đội)", false)), 0, 6);
 
+            autoTotal.AutoCheck = false; autoTotal.Enabled = false;
             var buttons = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, WrapContents = false, AutoScroll = true, Margin = new Padding(0, 7, 0, 4) };
             buttons.Controls.Add(autoTotal);
             AddButton(buttons, "▶ Bắt đầu", 108);
@@ -118,7 +119,7 @@ namespace ChromeGridApp
             grid.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
             grid.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
             grid.MultiSelect = false;
-            grid.SelectionChanged += delegate { UpdateFarmZoneChoice(); UpdateFarmMapChoices(); };
+            grid.SelectionChanged += delegate { UpdateFarmZoneChoice(); UpdateFarmMapChoices(); UpdateAutoTotalStatus(); };
             grid.CellDoubleClick += delegate { RequestOpenSelectedProfile(); };
             grid.BackgroundColor = SystemColors.Window;
             grid.Columns.Add("profile", "Profile");
@@ -222,7 +223,6 @@ namespace ChromeGridApp
                 if (StartAutoFarmRequested != null) StartAutoFarmRequested(profile, option == null ? "" : option.Id);
                 return;
             }
-            if (!autoTotal.Checked) { status.Text = "Tích “Auto tổng” rồi bấm Bắt đầu."; return; }
             if (StartAutoTotalRequested != null) StartAutoTotalRequested(profile);
         }
 
@@ -307,6 +307,18 @@ namespace ChromeGridApp
             }
             UpdateFarmZoneChoice();
             UpdateFarmMapChoices();
+            UpdateAutoTotalStatus();
+        }
+
+        private void UpdateAutoTotalStatus()
+        {
+            int profile = SelectedProfile();
+            string[] row = latestSnapshots != null && profile > 0 && profile <= latestSnapshots.Length ? latestSnapshots[profile - 1] : null;
+            string active = row != null && row.Length > 16 ? row[16] : "";
+            string activity = row != null && row.Length > 3 ? row[3] : "";
+            bool mainWorkflow = new[] { "automation:", "intro:", "quests:", "garden:", "navigation:" }
+                .Any(prefix => activity.StartsWith(prefix, StringComparison.OrdinalIgnoreCase));
+            autoTotal.Checked = active == "main" || active == "both" || mainWorkflow;
         }
 
         private static string FormatStoneBalance(string value)
