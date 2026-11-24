@@ -25,7 +25,7 @@ const body = [
   section('navigation/map-graph.js', 'navigation/flight.js'),
   section('npc/npc-finder.js', 'core/state-reader.js'),
   section('navigation/portal-travel.js', 'quests/quest-reader.js'),
-  read('src/standalone/free-books-access.js'),
+  read('src/standalone/game-access-hook.js'),
   read('src/farm/stone-planner.js'), read('src/farm/stone-runner.js'),
   read('src/standalone/stone-farm-main.js')
 ].join('\n');

@@ -17,8 +17,7 @@ function stop(reason = 'Đã dừng Auto farm.', result = 'STOPPED', preserve = 
 }
 function status() {
   const f = farm.status();
-  return { ...f, phase: f.state, preferredMapId: f.preferredMapId || null, preferredZoneId: f.preferredZoneId || null,
-    skippedTasks: [], books: null, quest: null };
+  return { ...f, phase: f.state, preferredMapId: f.preferredMapId || null, preferredZoneId: f.preferredZoneId || null };
 }
 function availableMaps() { try { return A.stoneFarmCandidates(access.get()).map(({id,name}) => ({id,name})); } catch (_) { return []; } }
 function start(options = {}) {
@@ -50,8 +49,8 @@ function tick() {
     try { sessionStorage.removeItem(resumeKey); sessionStorage.removeItem(mapKey); sessionStorage.removeItem(zoneKey); } catch (_) {}
   }
 }
-window.TuTienStoneFarm = Object.freeze({ version: '2.0.27', start, stop, status, maps: availableMaps,
-  report: () => ({ schema: 'tutien2d-combat-pipeline-v1', version: '2.0.27', status: status(), access: access.diagnostics(), events: entries.slice() }) });
+window.TuTienStoneFarm = Object.freeze({ version: '2.0.28', start, stop, status, maps: availableMaps,
+  report: () => ({ schema: 'tutien2d-combat-pipeline-v1', version: '2.0.28', status: status(), access: access.diagnostics(), events: entries.slice() }) });
 function manual(event) { if (farm.status().running && event.isTrusted) stop('Đã dừng vì bạn thao tác trong game.'); }
 document.addEventListener('pointerdown', manual, true);
 window.addEventListener('keydown', event => { if (/^(Escape|Key[WASDEQTF]|Arrow(Up|Down|Left|Right))$/.test(event.code)) manual(event); }, true);

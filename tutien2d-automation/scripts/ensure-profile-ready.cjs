@@ -62,7 +62,7 @@ async function inspect() {
   let state;
   for (let attempt = 0; attempt <= 3; attempt++) {
     state = await inspect();
-    if (state.auto === '0.9.17' && state.farm === '2.0.27' && state.ready) {
+    if (state.auto === '0.9.17' && state.farm === '2.0.28' && state.ready) {
       console.log(`Profile${String(profile).padStart(2, '0')}: scripts synced; character connection ready.`);
       process.exit(0);
     }

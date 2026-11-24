@@ -25,7 +25,7 @@ const header = `// ==UserScript==
 const A = {};
 `;
 const code = [
-  fs.readFileSync(path.join(root, 'src/standalone/free-books-access.js'), 'utf8'),
+  fs.readFileSync(path.join(root, 'src/standalone/game-access-hook.js'), 'utf8'),
   part('// src/core/controller.js', '// src/core/combat-skills.js'),
   part('// src/navigation/map-graph.js', '// src/navigation/flight.js'),
   part('// src/npc/npc-finder.js', '// src/core/state-reader.js'),

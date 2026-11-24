@@ -32,8 +32,6 @@ A.createStoneFarm = function ({ getGame, doc, host, controller, navigation, logg
     try {
       const other = host.TuTienAuto?.status?.();
       if (['automation', 'intro', 'quests', 'garden', 'navigation'].some(k => other?.[k]?.running)) return 'Auto TuTien2D';
-      const button = doc.getElementById('tt-free-books')?.shadowRoot?.getElementById('stop');
-      if (button && !button.disabled) return 'Bí tịch miễn phí';
     } catch (_) { return 'script khác chưa xác định'; }
     return null;
   }

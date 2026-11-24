@@ -16,13 +16,13 @@ if (!process.argv.includes('--farm-only')) {
 }
 const source = [section('core/controller.js','core/combat-skills.js'), section('navigation/map-graph.js','navigation/flight.js'),
   section('npc/npc-finder.js','core/state-reader.js'), section('navigation/portal-travel.js','quests/quest-reader.js'),
-  read('src/standalone/free-books-access.js'),
+  read('src/standalone/game-access-hook.js'),
   read('src/farm/stone-planner.js'), read('src/farm/stone-runner.js'),
   read('src/standalone/combat-pipeline-main.js')].join('\n');
 const header = `// ==UserScript==
-// @name         TuTien2D - Auto quai, duoc cong va linh thach
+// @name         TuTien2D - Auto quai farm Linh Thach
 // @namespace    local.tutien2d.stone-farm
-// @version      2.0.27
+// @version      2.0.28
 // @updateURL    http://127.0.0.1:19444/auto-quai.user.js
 // @downloadURL  http://127.0.0.1:19444/auto-quai.user.js
 // @match        https://tutien2d.com/*
@@ -34,5 +34,5 @@ const header = `// ==UserScript==
 // @noframes
 // ==/UserScript==
 `;
-fs.writeFileSync(path.join(root, 'dist/tutien2d-auto-quai-2.0.27.user.js'), header + '\n(() => {\n\'use strict\';\nconst A = {};\n' + source + '\n})();\n', 'utf8');
+fs.writeFileSync(path.join(root, 'dist/tutien2d-auto-quai-2.0.28.user.js'), header + '\n(() => {\n\'use strict\';\nconst A = {};\n' + source + '\n})();\n', 'utf8');
 console.log('Built headless Auto tổng and farm-only Auto quái');

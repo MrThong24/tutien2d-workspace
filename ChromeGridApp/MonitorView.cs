@@ -123,8 +123,8 @@ namespace ChromeGridApp
           } else if (command === 'stone' || command?.startsWith('stone:')) {
             const parts = command.startsWith('stone:') ? command.slice(6).split(':') : [];
             const mapId = parts[0] || '', zoneId = /^\d+$/.test(parts[1] || '') ? Number(parts[1]) : null;
-            if (!farmApi?.start) commandResult = 'Auto farm 2.0.27 is not installed';
-            else if (farmApi.version !== '2.0.27') commandResult = 'Auto farm version ' + (farmApi.version || 'unknown') + '; need 2.0.27';
+            if (!farmApi?.start) commandResult = 'Auto farm 2.0.28 is not installed';
+            else if (farmApi.version !== '2.0.28') commandResult = 'Auto farm version ' + (farmApi.version || 'unknown') + '; need 2.0.28';
             else if (farm?.running) commandResult = 'Auto farm is already running';
             else if (['automation','intro','quests','garden','navigation'].some(k => s?.[k]?.running) || (book?.getElementById('stop') && !book.getElementById('stop').disabled)) commandResult = 'Another automation is running; stop it first';
             else { try { const ok = farmApi.start({mapId, zoneId}); farm = farmApi.status(); commandResult = ok ? 'Auto farm started' : (farm?.message || 'Could not start Auto farm'); } catch(e) { commandResult = 'Auto farm error: ' + String(e); } }
