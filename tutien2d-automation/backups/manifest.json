@@ -1,0 +1,16 @@
+{
+  "capturedOn": "2026-11-17",
+  "source": "Tampermonkey BETA editor; both scripts were disabled and unchanged",
+  "files": [
+    {
+      "file": "auto-farm-meditation-v3.0.original.user.js",
+      "bytes": 3459,
+      "sha256": "b62b8980a9522fc6f692f06008ee5a47210d908195e668cdbac88409b159e463"
+    },
+    {
+      "file": "auto-farm-return-home-v5.0.original.user.js",
+      "bytes": 6953,
+      "sha256": "235e42909c4cdea9c3abbd33b4b1b4f3e7ad37d5e0b89ccc30b4915c770ad0c3"
+    }
+  ]
+}

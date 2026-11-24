@@ -1,0 +1,16 @@
+const fs = require('node:fs');
+const path = require('node:path');
+const root = path.resolve(__dirname, '..');
+const previousPath = path.join(root, 'dist/tutien2d-auto-tong-0.9.14.user.js');
+const outputPath = path.join(root, 'dist/tutien2d-auto-tong-0.9.15.user.js');
+const old = fs.readFileSync(previousPath, 'utf8');
+const later = fs.readFileSync(path.join(root, 'src/quests/later-intro.js'), 'utf8').trimEnd();
+const startMarker = '// src/quests/later-intro.js\n';
+const endMarker = '\n// src/quests/intro-runner.js';
+const start = old.indexOf(startMarker);
+const end = old.indexOf(endMarker, start + startMarker.length);
+if (start < 0 || end < 0) throw new Error('Could not locate later-intro section in 0.9.14 bundle.');
+const bundle = old.slice(0, start) + startMarker + later + old.slice(end);
+const versioned = bundle.replaceAll('0.9.14', '0.9.15');
+fs.writeFileSync(outputPath, versioned, 'utf8');
+console.log('Built ' + path.relative(root, outputPath));

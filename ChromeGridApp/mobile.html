@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#101b18">
+<title>TuTien2D trên điện thoại</title>
+<style>
+:root{color-scheme:dark;font-family:system-ui,-apple-system,sans-serif;background:#101b18;color:#eaf4ed}*{box-sizing:border-box}body{margin:0;padding:16px;max-width:720px;margin-inline:auto;padding-bottom:calc(20px + env(safe-area-inset-bottom))}h1{font-size:1.35rem;margin:.25rem 0}p{line-height:1.45;color:#b9ccc1}#summary{white-space:pre-line;margin:.5rem 0 1rem}.controls{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}.controls>*{flex:1 1 145px}input,select,button{font:inherit;border-radius:9px;border:1px solid #496c58;background:#1f3328;color:#fff;padding:11px}input{width:100%;margin:8px 0}button{min-height:44px;cursor:pointer}button.primary{background:#277346;border-color:#438c5c}button.danger{background:#703c3c;border-color:#965858}button:disabled{opacity:.5}.card{background:#192a21;border:1px solid #365644;border-radius:12px;margin:10px 0;overflow:hidden}.summary-button{display:flex;width:100%;min-height:70px;align-items:center;justify-content:space-between;gap:12px;text-align:left;border:0;border-radius:0;background:transparent;padding:13px 14px}.summary-button:active{background:#21372a}.summary-copy{display:grid;gap:4px;min-width:0}.character-name{font-weight:700;font-size:1.02rem;overflow-wrap:anywhere}.auto-status{font-size:.9rem;color:#b9d8c2;overflow-wrap:anywhere}.chevron{font-size:1.2rem;color:#a9c6b1;flex:none}.details{border-top:1px solid #365644;padding:12px 14px 14px}.muted{color:#b4caba;font-size:.9rem;line-height:1.45;margin:4px 0}.row{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.row>*{flex:1 1 130px}.info{white-space:pre-wrap;overflow-wrap:anywhere;background:#101c15;border-radius:8px;padding:11px;line-height:1.5;margin-top:10px}.tag{font-size:.78rem;color:#b4caba}.notice{min-height:24px;color:#dfeacf}.hidden{display:none}#logout{float:right;font-size:.85rem;padding:5px 10px;min-height:36px}button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid #94daaa}
+.extra-details{margin-top:10px;border:1px solid #365644;border-radius:8px;background:#101c15}.extra-details>summary{padding:11px;cursor:pointer;font-weight:650;color:#cce5d1}.extra-details>.info{margin:0;border-radius:0 0 8px 8px}
+</style>
+</head>
+<body>
+<button id="logout" class="hidden">Đăng xuất</button>
+<h1>Theo dõi TuTien2D</h1>
+<section id="login">
+  <p>Nhập mã truy cập hiển thị trong ứng dụng trên máy tính. Kết nối Tailscale trên cả hai thiết bị trước.</p>
+  <input id="code" type="password" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="Mã truy cập">
+  <button class="primary" id="connect">Kết nối</button>
+</section>
+<main id="dashboard" class="hidden">
+  <p id="summary">Đang tải…</p>
+  <div id="mobileControls" class="controls"></div>
+  <div id="cards"></div>
+</main>
+<p class="notice" id="message" role="status"></p>
+<script>
+'use strict';
+let token=sessionStorage.getItem('tutien_mobile_code')||'', expanded=0, details={}, extraOpen={}, selections={}, mapSelections={}, zoneSelections={}, locked=false, timer=null, lastDetailRefresh=0;
+const $=id=>document.getElementById(id), el=(tag,cls,text)=>{const n=document.createElement(tag);if(cls)n.className=cls;if(text!=null)n.textContent=text;return n};
+function msg(text){$('message').textContent=text;}
+async function api(path,body){const opt={headers:{Authorization:'Bearer '+token},cache:'no-store'};if(body){opt.method='POST';opt.headers['Content-Type']='application/json';opt.body=JSON.stringify(body)}const res=await fetch(path,opt);const data=await res.json();if(!res.ok||data.error)throw Error(data.error||'Không kết nối được');return data;}
+function reset(){token='';sessionStorage.removeItem('tutien_mobile_code');$('login').classList.remove('hidden');$('dashboard').classList.add('hidden');$('logout').classList.add('hidden');if(timer)clearInterval(timer);timer=null;}
+async function connect(){token=$('code').value.trim()||token;if(!token){msg('Hãy nhập mã truy cập.');return}try{await api('/api/state');sessionStorage.setItem('tutien_mobile_code',token);$('code').value='';$('login').classList.add('hidden');$('dashboard').classList.remove('hidden');$('logout').classList.remove('hidden');msg('Đã kết nối.');await refresh();if(timer)clearInterval(timer);timer=setInterval(refresh,5000)}catch(e){reset();msg(e.message)}}
+$('connect').onclick=connect;$('code').onkeydown=e=>{if(e.key==='Enter')connect()};$('logout').onclick=()=>{reset();msg('Đã đăng xuất khỏi giao diện điện thoại.')};
+function addButton(parent,text,cls,fn){const b=el('button',cls,text);b.disabled=locked;b.onclick=fn;parent.appendChild(b);return b;}
+async function act(profile,kind,script,map,zone){if(locked)return;locked=true;msg('Đang gửi lệnh…');try{const number=typeof profile==='number'?profile:profile.number;const r=await api('/api/action',{profile:number,character:typeof profile==='number'?'':profile.name||'',action:kind,script:script||'',map:map||'',zone:Number(zone)||0});msg(r.message||'Đã gửi lệnh.');if(expanded===number)await loadDetail(number)}catch(e){msg(e.message)}finally{locked=false;await refresh()}}
+async function loadDetail(n){try{details[n]=await api('/api/profile?number='+n)}catch(e){details[n]={error:e.message}}lastDetailRefresh=Date.now()}
+function renderControls(data){const root=$('mobileControls');root.replaceChildren();const count=el('select');count.setAttribute('aria-label','Số lượng profile');for(let i=1;i<=20;i++){const o=el('option',null,'Số profile: '+i);o.value=String(i);count.appendChild(o)}count.value=String(data.profileCount||10);count.disabled=locked;count.onchange=async()=>{locked=true;try{const r=await api('/api/action',{action:'setCount',count:Number(count.value)});msg(r.message||'Đã cập nhật số profile.')}catch(e){msg(e.message)}finally{locked=false;await refresh()}};root.appendChild(count);addButton(root,'Giảm đồ họa tất cả','',()=>act(0,'graphicsLow'));addButton(root,'Khôi phục đồ họa tất cả','',()=>act(0,'graphicsRestore'))}
+function render(data){
+  renderControls(data);
+  const profiles=data.profiles||[],root=$('cards');
+  root.replaceChildren();
+  for(const p of profiles){
+    const number=p.number,open=expanded===number,card=el('article','card'),summary=el('button','summary-button');
+    summary.type='button';summary.setAttribute('aria-expanded',String(open));summary.setAttribute('aria-controls','profile-details-'+number);
+    const copy=el('span','summary-copy');
+    copy.append(el('span','character-name',p.name||('Profile '+String(number).padStart(2,'0')+' · Chưa nhận diện')),el('span','auto-status','Auto: '+(p.auto|| (p.online?'Chưa xác định':'Chưa kết nối'))));
+    summary.append(copy,el('span','chevron',open?'⌃':'⌄'));
+    summary.onclick=async()=>{expanded=open?0:number;if(expanded)await loadDetail(number);render(data)};
+    card.appendChild(summary);
+    if(open){
+      const body=el('section','details');body.id='profile-details-'+number;body.setAttribute('aria-label','Chi tiết '+(p.name||'Profile '+number));
+      body.append(el('div','muted','Profile: '+String(number).padStart(2,'0')+' · '+(p.online?'Đang kết nối':'Chưa kết nối')),el('div','muted','Cảnh giới: '+(p.realm||'—')),el('div','muted','Khu hiện tại: '+(p.zone||'—')),el('div','muted','Linh thạch: '+(p.stone||'Chưa có dữ liệu')),el('div','muted','Bí kíp miễn phí: '+(p.books||'Chưa xác định')));
+      const detail=details[number],detailText=detail?.error||detail?.detail||'Đang tải chi tiết…';
+      if(/^Nhân vật\b/i.test(String(detailText).trim())){const extra=el('details','extra-details');extra.open=!!extraOpen[number];extra.addEventListener('toggle',()=>{extraOpen[number]=extra.open});extra.appendChild(el('summary',null,'Thông tin nhân vật'));extra.appendChild(el('div','info',detailText));body.appendChild(extra)}
+      else body.appendChild(el('div','info',detailText));
+      const scripts=el('div','row'),select=el('select');select.setAttribute('aria-label','Chọn auto');
+      for(const [v,label] of [['main','Auto tổng'],['stone','Auto quái']]){const option=el('option',null,label);option.value=v;select.appendChild(option)}
+      select.value=selections[number]||(p.active==='stone'?'stone':'main');select.onchange=()=>{selections[number]=select.value};scripts.appendChild(select);
+      const mapSelect=el('select');mapSelect.setAttribute('aria-label','Chọn map farm');
+      const automatic=el('option',null,'Bãi farm: tự động');automatic.value='';mapSelect.appendChild(automatic);
+      for(const m of p.maps||[]){const option=el('option',null,'Bãi farm: '+m.name);option.value=m.id;mapSelect.appendChild(option)}
+      mapSelect.value=mapSelections[number]??p.farmMap??'';mapSelect.onchange=()=>{mapSelections[number]=mapSelect.value};scripts.appendChild(mapSelect);
+      const zoneSelect=el('select');zoneSelect.setAttribute('aria-label','Chọn khu farm');
+      const autoZone=el('option',null,'Khu: tự động');autoZone.value='0';zoneSelect.appendChild(autoZone);
+      const zoneMax=Math.max(1,Math.min(30,Number(p.zoneCount)||30));
+      for(let i=1;i<=zoneMax;i++){const option=el('option',null,'Khu: '+i);option.value=String(i);zoneSelect.appendChild(option)}
+      const savedZone=Number(p.farmZone)||0;zoneSelect.value=String(zoneSelections[number]??savedZone);
+      if(!zoneSelect.value)zoneSelect.value='0';zoneSelect.onchange=()=>{zoneSelections[number]=Number(zoneSelect.value)};scripts.appendChild(zoneSelect);
+      addButton(scripts,'Chạy script','primary',()=>act(p,'start',select.value,mapSelect.value,Number(zoneSelect.value)));
+      addButton(scripts,'Dừng script','danger',()=>act(p,'stop',select.value));body.appendChild(scripts);
+      const graphics=el('div','row');addButton(graphics,'Giảm đồ họa','',()=>act(p,'graphicsLow'));addButton(graphics,'Khôi phục đồ họa','',()=>act(p,'graphicsRestore'));body.appendChild(graphics);
+      const chrome=el('div','row');addButton(chrome,'Mở Chrome','primary',()=>act(p,'open'));addButton(chrome,'Đóng Chrome','danger',()=>act(p,'close'));body.appendChild(chrome);
+      const dates=el('div','row');if(p.done===true)addButton(dates,'Chuyển sang chưa Done date','',()=>act(p,'undone'));else addButton(dates,'Done date & đóng Chrome','primary',()=>act(p,'done'));body.appendChild(dates);
+      card.appendChild(body);
+    }
+    root.appendChild(card);
+  }
+}async function refresh(){try{const data=await api('/api/state');$('summary').textContent='Đang theo dõi '+data.profiles.length+' profile · cập nhật '+new Date().toLocaleTimeString('vi-VN')+(data.operation?'\nMáy tính: '+data.operation:'');if(expanded&&!locked&&Date.now()-lastDetailRefresh>15000)await loadDetail(expanded);if(!locked&&document.activeElement?.tagName!=='SELECT')render(data)}catch(e){msg(e.message)}}
+if(token)connect();
+</script>
+</body>
+</html>

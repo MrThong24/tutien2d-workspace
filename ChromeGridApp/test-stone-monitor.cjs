@@ -1,0 +1,46 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const vm = require('node:vm');
+const source = fs.readFileSync('MonitorView.cs', 'utf8');
+let expression = source.match(/private const string Expression = @"([\s\S]*?)";/)[1];
+expression = expression.replaceAll('__RUN_COMMAND__', 'null').replaceAll('__AUTO_SESSION__', 'null').replaceAll('__DETAIL__', 'false').replaceAll('""', '"');
+const visible = textContent => ({ textContent, hidden: false, classList: { contains: () => false }, getClientRects: () => [1] });
+const nodes = { hud: visible(''), 'hud-map': visible('Thảo Dược Cốc'), 'hud-pos': visible('(1, 1)'), 'hud-name': visible('Tester') };
+const document = { getElementById: id => nodes[id] || null };
+const game = { SceneWorld: { player: {} }, Progress: { stones: 321 }, Loot: { stoneToday: () => ({ da: 12, tran: 5000, ngay: 2 }) }, KhuUI: { khu: 7 } };
+const farm = { running: true, state: 'FARM', message: 'Đang đánh', phase: 'FARM', startBalance: 300, gained: 21, spent: 0, perHour: 1200, targetMap: 'Thảo Dược Cốc' };
+const window = { gameDebug: game, TuTienStoneFarm: { version: '2.0.2', start() {}, status: () => farm } };
+const data = JSON.parse(vm.runInNewContext(expression, { window, document, Number, String, Array, JSON }));
+assert.match(data.stoneInfo, /Ví: 321/);
+assert.match(data.stoneInfo, /Tăng trong phiên: 21/);
+assert.match(data.stoneInfo, /Tốc độ: 1200\/giờ/);
+assert.match(data.stoneInfo, /Đá rơi hôm nay: 12\/5000/);
+assert.equal(data.stoneDay, '12/5000');
+assert.equal(data.stoneBalance, '321');
+assert.equal(data.stoneEarnedToday, '12');
+assert.equal(data.stoneDayKey, '2');
+assert.match(data.stoneInfo, /Khu: 7/);
+assert.equal(data.zone, '7');
+farm.perHour = null;
+assert.match(JSON.parse(vm.runInNewContext(expression, { window, document, Number, String, Array, JSON })).stoneInfo, /chờ đo/);
+let selectedMap = null;
+window.TuTienStoneFarm.version = '2.0.20';
+window.TuTienStoneFarm.start = options => { selectedMap = options.mapId; return true; };
+window.TuTienStoneFarm.maps = () => [{ id: 'mieu_hoang', name: 'Miếu Hoang' }];
+farm.running = false;
+const commandExpression = source.match(/private const string Expression = @"([\s\S]*?)";/)[1]
+  .replaceAll('__RUN_COMMAND__', "'stone:mieu_hoang'").replaceAll('__AUTO_SESSION__', 'null').replaceAll('__DETAIL__', 'false').replaceAll('""', '"');
+const commandData = JSON.parse(vm.runInNewContext(commandExpression, { window, document, Number, String, Array, JSON }));
+assert.equal(selectedMap, 'mieu_hoang');
+assert.equal(JSON.parse(commandData.farmMaps)[0].name, 'Miếu Hoang');
+let quality = 'binh_thuong', fps = 60;
+game.Quality = { levels: [{id:'binh_thuong'},{id:'sieu_lo'}], get: () => ({ id: quality }),
+  set(id) { quality = id; return { id }; }, fpsKhoa: () => fps, fpsKhoaDat(value) { fps = value; return fps; } };
+const storage = new Map();
+const localStorage = { getItem: key => storage.get(key) || null, setItem: (key, value) => storage.set(key, value), removeItem: key => storage.delete(key) };
+const graphicsExpression = action => source.match(/private const string Expression = @"([\s\S]*?)";/)[1]
+  .replaceAll('__RUN_COMMAND__', JSON.stringify(action)).replaceAll('__AUTO_SESSION__', 'null').replaceAll('__DETAIL__', 'false').replaceAll('""', '"');
+const runGraphics = action => JSON.parse(vm.runInNewContext(graphicsExpression(action), { window, document, localStorage, Number, String, Array, JSON }));
+assert.match(runGraphics('optimizeGraphics').auto, /30 FPS/); assert.equal(quality, 'sieu_lo'); assert.equal(fps, 30);
+runGraphics('optimizeGraphics'); assert.match(runGraphics('restoreGraphics').auto, /khôi phục/); assert.equal(quality, 'binh_thuong'); assert.equal(fps, 60);
+console.log('Theo dõi Linh Thạch: OK');

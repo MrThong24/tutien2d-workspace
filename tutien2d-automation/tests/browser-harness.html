@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="vi"><head><meta charset="utf-8"><title>TuTienAuto isolated browser test</title>
+<script src="../dist/tutien2d.user.js"></script>
+<script>
+  // Synthetic game state only. This page does not connect to the game server.
+  window.PNTT = {
+    CONFIG: { TILE: 32, PLAYER: { HITBOX_W: 16, HITBOX_H: 12 } },
+    SceneWorld: { player: { x: 432, y: 272, hp: 100, state: 'idle', path: [], setPath(p) { this.path = p; } },
+      map: { data: { id: 'duoc_vien', name: 'Map thử nghiệm' }, portals: [], props: [
+        { id: 'dai_phu', type: 'npc', x: 464, y: 288, r: 48 }
+      ] }, autoOn: false },
+    MapData: { DUOC_VIEN: { id: 'duoc_vien', portals: [] } },
+    Pathfinder: { route(map, x, y, tx, ty) { return [{ x: tx, y: ty }]; } },
+    HUD: { dialogOpen: false }, Quest: { stage: 21, seedQuest: { active: false }, seedTaskList:()=>[],seedTaskInfo:()=>null }
+  };
+  delete window.PNTT;
+</script></head><body><h1>Isolated browser harness</h1><pre id="result">WAITING</pre>
+<script>
+  setTimeout(() => {
+    const results = [];
+    const check = (name, passed) => results.push({ name, passed: !!passed });
+    const api = window.TuTienAuto;
+    check('namespace retained after deletion', api.report().snapshot.ready);
+    const root = document.getElementById('tutien-auto-panel')?.shadowRoot;
+    check('overlay rendered', root?.getElementById('start'));
+    check('unified auto button rendered', root?.getElementById('auto'));
+    check('unified start disabled before acknowledgment', root.getElementById('auto').disabled);
+    check('start disabled before acknowledgment', root.getElementById('start').disabled);
+    root.getElementById('ready').checked = true;
+    root.getElementById('ready').dispatchEvent(new Event('change'));
+    root.getElementById('start').click();
+    check('start reaches NPC fixture', api.status().navigation.state === 'DONE');
+    root.getElementById('stop').click();
+    check('stop button', api.status().navigation.state === 'STOPPED');
+    check('unified start accepts explicit request', api.startAuto({otherScriptsStopped:true}));
+    check('existing account skips intro', api.status().automation.next==='QUESTS');
+    check('manual worker cannot compete with unified auto', api.startGarden({otherScriptsStopped:true})===false);
+    api.stop();check('unified stop disables schedule', !api.status().automation.running);
+    check('report serializable', JSON.stringify(api.report()).includes('duoc_vien'));
+    api.stopAutoDebug(); check('diagnostic can stop', !api.getAutoDebugStatus().running);
+    api.startAutoDebug(); check('diagnostic can restart', api.getAutoDebugStatus().running);
+    api.dispose(); check('dispose removes overlay', !document.getElementById('tutien-auto-panel'));
+    check('disposed script cannot start', api.start({ otherScriptsStopped: true }) === false);
+    document.getElementById('result').textContent = JSON.stringify({ passed: results.every(r => r.passed), results });
+  }, 1500);
+</script></body></html>

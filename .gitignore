@@ -1,0 +1,36 @@
+# Chrome user data, sessions and profile-specific secrets
+/ChromeProxy/
+/ProxyTest/
+**/Default/Cookies
+**/Default/Login Data
+**/Local State
+**/accounts.dat
+**/account-passwords.dat
+**/proxy-assignments.dat
+**/proxy-pool.dat
+**/proxy-relays/
+**/proxies.txt
+**/.env
+**/.env.*
+
+# Local evidence captures can contain live game/account state
+/tutien2d-automation/evidence/
+/ChromeGridApp/capture*.png
+
+# Build outputs: keep only the latest runnable app
+/*.exe
+!/Mo-Chrome-20-mot-man-hinh-stats-2.0.33.exe
+
+# One-off local diagnostics
+/check-*.cjs
+/diag-*.cjs
+/game-resources.cjs
+/inspect-*.cjs
+/reload-check-*.cjs
+/verify-*.cjs
+
+# Generated dependencies and build output
+**/node_modules/
+**/bin/
+**/obj/
+*.log
