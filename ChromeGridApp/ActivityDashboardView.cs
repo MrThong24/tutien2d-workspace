@@ -20,6 +20,10 @@ namespace ChromeGridApp
         private readonly CheckBox autoTotal = new CheckBox { Text = "Auto tổng", AutoSize = true, Checked = false, Margin = new Padding(6, 8, 6, 0) };
         private string[][] latestSnapshots;
         private int profileCount;
+        private bool syncingActiveMode;
+        private bool autoModeManualOverride;
+        private int autoModeProfile;
+        private string previousAutoScript = "";
         public event Action AddAccountRequested;
         public event Action<int> DeleteAccountRequested;
         public event Action<int> OpenProfileRequested;
@@ -87,7 +91,9 @@ namespace ChromeGridApp
                 Label("Cổng:"), gate,
                 Check("Đi độc lập (không lập tổ đội)", false)), 0, 6);
 
-            autoTotal.AutoCheck = false; autoTotal.Enabled = false;
+            autoTotal.Enabled = true;
+            autoTotal.CheckedChanged += delegate { if (!syncingActiveMode) autoModeManualOverride = true; };
+            autoFarm.CheckedChanged += delegate { if (!syncingActiveMode) autoModeManualOverride = true; };
             var buttons = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, WrapContents = false, AutoScroll = true, Margin = new Padding(0, 7, 0, 4) };
             buttons.Controls.Add(autoTotal);
             AddButton(buttons, "▶ Bắt đầu", 108);
@@ -313,12 +319,40 @@ namespace ChromeGridApp
         private void UpdateAutoTotalStatus()
         {
             int profile = SelectedProfile();
-            string[] row = latestSnapshots != null && profile > 0 && profile <= latestSnapshots.Length ? latestSnapshots[profile - 1] : null;
+            if (profile < 1 || profile > 20) return;
+            bool changedProfile = profile != autoModeProfile;
+            string[] row = latestSnapshots != null && profile <= latestSnapshots.Length ? latestSnapshots[profile - 1] : null;
             string active = row != null && row.Length > 16 ? row[16] : "";
             string activity = row != null && row.Length > 3 ? row[3] : "";
             bool mainWorkflow = new[] { "automation:", "intro:", "quests:", "garden:", "navigation:" }
                 .Any(prefix => activity.StartsWith(prefix, StringComparison.OrdinalIgnoreCase));
-            autoTotal.Checked = active == "main" || active == "both" || mainWorkflow;
+            bool farmWorkflow = activity.StartsWith("Auto quái:", StringComparison.OrdinalIgnoreCase) || active == "stone" || active == "both";
+            bool mainActive = active == "main" || active == "both" || mainWorkflow;
+            string actual = mainActive && farmWorkflow ? "both" : mainActive ? "main" : farmWorkflow ? "stone" : "";
+
+            if (changedProfile)
+            {
+                autoModeProfile = profile;
+                autoModeManualOverride = false;
+            }
+            if (actual.Length > 0)
+            {
+                autoModeManualOverride = false;
+                SetAutomationChecks(mainActive, farmWorkflow);
+            }
+            else if (changedProfile || (previousAutoScript.Length > 0 && !autoModeManualOverride))
+            {
+                SetAutomationChecks(false, false);
+                autoModeManualOverride = false;
+            }
+            previousAutoScript = actual;
+        }
+
+        private void SetAutomationChecks(bool total, bool farm)
+        {
+            syncingActiveMode = true;
+            try { autoTotal.Checked = total; autoFarm.Checked = farm; }
+            finally { syncingActiveMode = false; }
         }
 
         private static string FormatStoneBalance(string value)
