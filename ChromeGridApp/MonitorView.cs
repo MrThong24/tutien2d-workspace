@@ -23,6 +23,7 @@ namespace ChromeGridApp
         private readonly Button autoButton = new Button();
         private readonly Button farmAllButton = new Button();
         private readonly ComboBox scriptChoice = new ComboBox();
+        private readonly Label activeScriptStatus = new Label();
         private readonly ComboBox profileChoice = new ComboBox();
         private readonly ComboBox farmMapChoice = new ComboBox();
         private readonly ComboBox farmZoneChoice = new ComboBox();
@@ -51,6 +52,9 @@ namespace ChromeGridApp
         private bool busy;
         private string autoSession;
         private readonly HashSet<int> pausedAutoProfiles = new HashSet<int>();
+        private readonly Dictionary<int, int> scriptChoiceByProfile = new Dictionary<int, int>();
+        private int scriptChoiceProfile;
+        private bool syncingScriptChoice;
         private readonly string[] commandMessages = new string[MaxProfiles];
         private DateTime commandExpires = DateTime.MinValue;
         private const string Expression = @"(() => {
@@ -248,16 +252,32 @@ namespace ChromeGridApp
             scriptChoice.Items.AddRange(new object[] { "Auto tổng", "Auto quái" }); scriptChoice.SelectedIndex = 0;
             profileChoice.DropDownStyle = ComboBoxStyle.DropDownList; profileChoice.Width = 130; profileChoice.Items.Add("Tất cả profile");
             for (int i = 1; i <= profileCount; i++) profileChoice.Items.Add("Profile" + i.ToString("00")); profileChoice.SelectedIndex = 0;
+            activeScriptStatus.AutoSize = true; activeScriptStatus.Text = "\u0110ang ch\u1ea1y: ch\u01b0a x\u00e1c \u0111\u1ecbnh"; activeScriptStatus.Margin = new Padding(3, 7, 8, 0);
+            scriptChoice.SelectedIndexChanged += delegate {
+                if (!syncingScriptChoice && scriptChoiceProfile >= 1 && scriptChoiceProfile <= MaxProfiles && scriptChoice.SelectedIndex >= 0)
+                    scriptChoiceByProfile[scriptChoiceProfile] = scriptChoice.SelectedIndex;
+            };
             farmMapChoice.DropDownStyle = ComboBoxStyle.DropDownList; farmMapChoice.Width = 180;
             farmMapChoice.Items.Add(new FarmMapOption("", "Map: Tự động")); farmMapChoice.SelectedIndex = 0;
             farmZoneChoice.DropDownStyle = ComboBoxStyle.DropDownList; farmZoneChoice.Width = 110;
             farmZoneChoice.Items.Add(new FarmZoneOption(0)); for (int i = 1; i <= 30; i++) farmZoneChoice.Items.Add(new FarmZoneOption(i)); farmZoneChoice.SelectedIndex = 0;
-            profileChoice.SelectedIndexChanged += delegate { UpdateMapChoices(); UpdateZoneChoices(); };
+            profileChoice.SelectedIndexChanged += delegate {
+                UpdateMapChoices(); UpdateZoneChoices();
+                if (profileChoice.SelectedIndex > 0) SyncScriptForProfile(profileChoice.SelectedIndex);
+                else
+                {
+                    if (scriptChoiceProfile >= 1 && scriptChoice.SelectedIndex >= 0)
+                        scriptChoiceByProfile[scriptChoiceProfile] = scriptChoice.SelectedIndex;
+                    scriptChoiceProfile = 0;
+                    activeScriptStatus.Text = "\u0110ang ch\u1ea1y: xem theo t\u1eebng profile";
+                }
+            };
             runScript.AutoSize = true; runScript.Text = "Chạy script đã chọn"; runScript.Click += async delegate { await RunSelectedScript(false); };
             stopScript.AutoSize = true; stopScript.Text = "Dừng script profile này"; stopScript.Click += async delegate { await RunSelectedScript(true); };
             optimizeGraphics.AutoSize = true; optimizeGraphics.Text = "Giảm đồ họa"; optimizeGraphics.Click += async delegate { await ChangeGraphics(false); };
             restoreGraphics.AutoSize = true; restoreGraphics.Text = "Khôi phục đồ họa"; restoreGraphics.Click += async delegate { await ChangeGraphics(true); };
             scriptRow.Controls.Add(scriptChoice); scriptRow.Controls.Add(profileChoice); scriptRow.Controls.Add(farmMapChoice); scriptRow.Controls.Add(farmZoneChoice); scriptRow.Controls.Add(runScript); scriptRow.Controls.Add(stopScript); scriptRow.Controls.Add(optimizeGraphics); scriptRow.Controls.Add(restoreGraphics); layout.Controls.Add(scriptRow, 0, 2);
+            scriptRow.Controls.Add(activeScriptStatus); scriptRow.Controls.SetChildIndex(activeScriptStatus, 1);
             status.AutoSize = true; status.Text = "Đang kiểm tra…"; status.Margin = new Padding(0, 8, 0, 8); layout.Controls.Add(status, 0, 3);
             grid.Dock = DockStyle.Fill; grid.ReadOnly = true; grid.AllowUserToAddRows = false; grid.AllowUserToDeleteRows = false;
             grid.RowHeadersVisible = false; grid.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
@@ -388,10 +408,27 @@ namespace ChromeGridApp
         private void SyncScriptForProfile(int number)
         {
             if (number < 1 || number > MaxProfiles) return;
+            if (scriptChoiceProfile != number)
+            {
+                if (scriptChoiceProfile >= 1 && scriptChoice.SelectedIndex >= 0)
+                    scriptChoiceByProfile[scriptChoiceProfile] = scriptChoice.SelectedIndex;
+                scriptChoiceProfile = number;
+            }
             var row = details[number - 1];
             string active = row != null && row.Length > 16 ? row[16] : null;
-            if (active == "main") scriptChoice.SelectedIndex = 0;
-            else if (active == "stone") scriptChoice.SelectedIndex = 1;
+            int selection;
+            if (active == "main") selection = 0;
+            else if (active == "stone") selection = 1;
+            else if (!scriptChoiceByProfile.TryGetValue(number, out selection)) selection = 0;
+            syncingScriptChoice = true;
+            try { if (scriptChoice.SelectedIndex != selection) scriptChoice.SelectedIndex = selection; }
+            finally { syncingScriptChoice = false; }
+            if (active == "main") activeScriptStatus.Text = "\u0110ang ch\u1ea1y: Auto t\u1ed5ng";
+            else if (active == "stone") activeScriptStatus.Text = "\u0110ang ch\u1ea1y: Auto qu\u00e1i";
+            else if (active == "both") activeScriptStatus.Text = "\u0110ang ch\u1ea1y: Auto t\u1ed5ng + Auto qu\u00e1i";
+            else if (active == "books") activeScriptStatus.Text = "\u0110ang ch\u1ea1y: B\u00ed t\u1ecbch";
+            else if (row == null || row.Length <= 8 || row[8] == "—") activeScriptStatus.Text = "\u0110ang ch\u1ea1y: ch\u01b0a k\u1ebft n\u1ed1i game";
+            else activeScriptStatus.Text = "\u0110ang ch\u1ea1y: kh\u00f4ng ph\u00e1t hi\u1ec7n auto";
         }
 
         private static string ActiveScript(string[] row) { return row != null && row.Length > 16 ? row[16] : null; }
@@ -675,8 +712,8 @@ namespace ChromeGridApp
         {
             if (number < 1 || number > profileCount) return "Profile không hợp lệ.";
             if (busy || !actionsEnabled) return "Ứng dụng đang xử lý thao tác khác; thử lại sau.";
-            scriptChoice.SelectedIndex = 0;
             profileChoice.SelectedIndex = number;
+            scriptChoice.SelectedIndex = 0;
             await RunSelectedScript(false);
             string[] row = number <= details.Length ? details[number - 1] : null;
             return row != null && row.Length > 3 ? row[3] : status.Text;
