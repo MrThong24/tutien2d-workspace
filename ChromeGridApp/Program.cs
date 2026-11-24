@@ -80,7 +80,9 @@ namespace ChromeGridApp
         private string temporaryScript;
         private string temporaryProxies;
         private string launchFailure;
-        private int profileSyncAfterLaunch;
+        private readonly HashSet<int> profilesNeedingSync = new HashSet<int>();
+        private readonly List<int> profileSyncAfterLaunch = new List<int>();
+        private string PendingProfileSyncFile { get { return Path.Combine(SecretStore.Root, "profile-sync-pending.dat"); } }
         private readonly string proxyConfig = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TuTienChromeGrid", "proxies.txt");
         private readonly string autoConfig = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TuTienChromeGrid", "auto-start.txt");
         private static readonly string[] InitialProxies = {
@@ -119,6 +121,7 @@ namespace ChromeGridApp
             try
             {
                 savedAccounts = AccountStore.Load();
+                LoadPendingProfileSync();
                 if (savedAccounts.Any(x => !x.AutoSubmitLogin))
                 {
                     foreach (var account in savedAccounts) account.AutoSubmitLogin = true;
@@ -445,6 +448,8 @@ namespace ChromeGridApp
                     if (dialog.ShowDialog(this) != DialogResult.OK || dialog.Account == null) return;
                     savedAccounts.Add(dialog.Account);
                     AccountStore.Save(savedAccounts);
+                    profilesNeedingSync.Add(profile);
+                    SavePendingProfileSync();
 
                     var proxies = ProxySupport.ParseLines(proxyBox.Text, false).ToList();
                     while (proxies.Count < profile) proxies.Add(InitialProxies[proxies.Count % InitialProxies.Length]);
@@ -459,9 +464,7 @@ namespace ChromeGridApp
                     if (dialog.OpenAfterSave)
                     {
                         monitorEnabled.Checked = true;
-                        profileSyncAfterLaunch = profile;
                         RunScript(false, profile);
-                        if (process == null) profileSyncAfterLaunch = 0;
                     }
                 }
             }
@@ -489,6 +492,8 @@ namespace ChromeGridApp
                 if (answer != DialogResult.Yes) return;
                 savedAccounts.Remove(entry);
                 AccountStore.Save(savedAccounts);
+                profilesNeedingSync.Remove(profile);
+                SavePendingProfileSync();
                 activityDashboard.SetAccounts(savedAccounts);
                 int remainingProfiles = savedAccounts.Count == 0 ? 0 : savedAccounts.Max(x => x.Profile);
                 int launcherCount = Math.Max(1, remainingProfiles);
@@ -663,13 +668,42 @@ namespace ChromeGridApp
                 host.EndsWith(".tutienpixel.online", StringComparison.OrdinalIgnoreCase);
         }
 
+        private void LoadPendingProfileSync()
+        {
+            profilesNeedingSync.Clear();
+            if (!File.Exists(PendingProfileSyncFile)) return;
+            try
+            {
+                int[] profiles = new JavaScriptSerializer().Deserialize<int[]>(SecretStore.Read(PendingProfileSyncFile)) ?? new int[0];
+                foreach (int profile in profiles.Where(x => x >= 1 && x <= 20)) profilesNeedingSync.Add(profile);
+            }
+            catch
+            {
+                // A corrupt pending marker must not prevent the launcher from opening.
+                profilesNeedingSync.Clear();
+            }
+        }
+
+        private void SavePendingProfileSync()
+        {
+            SecretStore.Write(PendingProfileSyncFile, new JavaScriptSerializer().Serialize(profilesNeedingSync.OrderBy(x => x).ToArray()));
+        }
+
         private void RunScript(bool previewOnly, int profileNumber)
         {
             if (process != null) return;
             try
             {
                 savedAccounts = AccountStore.Load();
-                bool syncProfileAfterLaunch = !previewOnly && profileNumber > 0 && profileSyncAfterLaunch == profileNumber;
+                profileSyncAfterLaunch.Clear();
+                if (!previewOnly)
+                {
+                    IEnumerable<int> requestedSync = profileNumber > 0
+                        ? profilesNeedingSync.Where(x => x == profileNumber)
+                        : profilesNeedingSync.Where(x => x <= (int)profileCountChoice.Value);
+                    profileSyncAfterLaunch.AddRange(requestedSync.OrderBy(x => x));
+                }
+                bool syncProfileAfterLaunch = profileSyncAfterLaunch.Count > 0;
                 bool hasAccountToFill = savedAccounts.Any(x =>
                     (profileNumber == 0 ? x.Profile <= (int)profileCountChoice.Value : x.Profile == profileNumber) &&
                     !string.IsNullOrWhiteSpace(x.Username) && !string.IsNullOrWhiteSpace(x.Password));
@@ -714,6 +748,14 @@ namespace ChromeGridApp
                 if (!child.Start()) throw new InvalidOperationException("Không khởi động được PowerShell.");
                 child.BeginOutputReadLine(); child.BeginErrorReadLine();
                 if (!previewOnly && hasAccountToFill && !syncProfileAfterLaunch) ScheduleAccountAutofill(profileNumber);
+                else if (!previewOnly && profileNumber == 0 && syncProfileAfterLaunch)
+                {
+                    foreach (int profile in savedAccounts
+                        .Where(x => x.Profile <= count && !profilesNeedingSync.Contains(x.Profile) &&
+                            !string.IsNullOrWhiteSpace(x.Username) && !string.IsNullOrWhiteSpace(x.Password))
+                        .Select(x => x.Profile).Distinct())
+                        ScheduleAccountAutofill(profile);
+                }
             }
             catch (Exception error)
             {
@@ -770,7 +812,15 @@ namespace ChromeGridApp
                             : "Profile" + profileNumber.ToString("00") + ": đồng bộ/kết nối chưa xong. Xem Nhật ký hoặc lỗi bên dưới.";
                         if (!string.IsNullOrWhiteSpace(resultText)) output.AppendText(resultText + Environment.NewLine);
                         activityDashboard.SetStatus(message); state.Text = message;
-                        if (exitCode == 0) ScheduleAccountAutofill(profileNumber);
+                        if (exitCode == 0)
+                        {
+                            profilesNeedingSync.Remove(profileNumber);
+                            SavePendingProfileSync();
+                            ScheduleAccountAutofill(profileNumber);
+                            int next = profileSyncAfterLaunch.Count == 0 ? 0 : profileSyncAfterLaunch[0];
+                            if (profileSyncAfterLaunch.Count > 0) profileSyncAfterLaunch.RemoveAt(0);
+                            if (next > 0) ScheduleProfileScriptSync(next);
+                        }
                     }));
                 }
                 catch (InvalidOperationException) { }
@@ -798,12 +848,18 @@ namespace ChromeGridApp
             {
                 BeginInvoke(new Action(delegate {
                     if (process != child) return;
-                    int syncProfile = code == 0 ? profileSyncAfterLaunch : 0;
-                    profileSyncAfterLaunch = 0;
+                    List<int> syncProfiles = code == 0 ? profileSyncAfterLaunch.ToList() : new List<int>();
+                    profileSyncAfterLaunch.Clear();
                     process.Dispose(); process = null;
                     DeleteTemporaryScript();
                     SetIdle(code == 0 ? "Đã hoàn tất. Xem chi tiết bên dưới." : (launchFailure ?? "Chưa hoàn tất. Xem thông báo ở tab Mở Chrome."));
-                    if (syncProfile > 0) ScheduleProfileScriptSync(syncProfile);
+                    if (syncProfiles.Count > 0)
+                    {
+                        int first = syncProfiles[0];
+                        syncProfiles.RemoveAt(0);
+                        profileSyncAfterLaunch.AddRange(syncProfiles);
+                        ScheduleProfileScriptSync(first);
+                    }
                 }));
             }
             catch (InvalidOperationException) { DeleteTemporaryScript(); }
