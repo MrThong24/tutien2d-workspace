@@ -52,9 +52,6 @@ namespace ChromeGridApp
         private bool busy;
         private string autoSession;
         private readonly HashSet<int> pausedAutoProfiles = new HashSet<int>();
-        private readonly Dictionary<int, int> scriptChoiceByProfile = new Dictionary<int, int>();
-        private int scriptChoiceProfile;
-        private bool syncingScriptChoice;
         private readonly string[] commandMessages = new string[MaxProfiles];
         private DateTime commandExpires = DateTime.MinValue;
         private const string Expression = @"(() => {
@@ -253,10 +250,6 @@ namespace ChromeGridApp
             profileChoice.DropDownStyle = ComboBoxStyle.DropDownList; profileChoice.Width = 130; profileChoice.Items.Add("Tất cả profile");
             for (int i = 1; i <= profileCount; i++) profileChoice.Items.Add("Profile" + i.ToString("00")); profileChoice.SelectedIndex = 0;
             activeScriptStatus.AutoSize = true; activeScriptStatus.Text = "\u0110ang ch\u1ea1y: ch\u01b0a x\u00e1c \u0111\u1ecbnh"; activeScriptStatus.Margin = new Padding(3, 7, 8, 0);
-            scriptChoice.SelectedIndexChanged += delegate {
-                if (!syncingScriptChoice && scriptChoiceProfile >= 1 && scriptChoiceProfile <= MaxProfiles && scriptChoice.SelectedIndex >= 0)
-                    scriptChoiceByProfile[scriptChoiceProfile] = scriptChoice.SelectedIndex;
-            };
             farmMapChoice.DropDownStyle = ComboBoxStyle.DropDownList; farmMapChoice.Width = 180;
             farmMapChoice.Items.Add(new FarmMapOption("", "Map: Tự động")); farmMapChoice.SelectedIndex = 0;
             farmZoneChoice.DropDownStyle = ComboBoxStyle.DropDownList; farmZoneChoice.Width = 110;
@@ -264,13 +257,7 @@ namespace ChromeGridApp
             profileChoice.SelectedIndexChanged += delegate {
                 UpdateMapChoices(); UpdateZoneChoices();
                 if (profileChoice.SelectedIndex > 0) SyncScriptForProfile(profileChoice.SelectedIndex);
-                else
-                {
-                    if (scriptChoiceProfile >= 1 && scriptChoice.SelectedIndex >= 0)
-                        scriptChoiceByProfile[scriptChoiceProfile] = scriptChoice.SelectedIndex;
-                    scriptChoiceProfile = 0;
-                    activeScriptStatus.Text = "\u0110ang ch\u1ea1y: xem theo t\u1eebng profile";
-                }
+                else activeScriptStatus.Text = "Ch\u1ecdn profile \u0111\u1ec3 xem script \u0111ang ch\u1ea1y";
             };
             runScript.AutoSize = true; runScript.Text = "Chạy script đã chọn"; runScript.Click += async delegate { await RunSelectedScript(false); };
             stopScript.AutoSize = true; stopScript.Text = "Dừng script profile này"; stopScript.Click += async delegate { await RunSelectedScript(true); };
@@ -408,21 +395,11 @@ namespace ChromeGridApp
         private void SyncScriptForProfile(int number)
         {
             if (number < 1 || number > MaxProfiles) return;
-            if (scriptChoiceProfile != number)
-            {
-                if (scriptChoiceProfile >= 1 && scriptChoice.SelectedIndex >= 0)
-                    scriptChoiceByProfile[scriptChoiceProfile] = scriptChoice.SelectedIndex;
-                scriptChoiceProfile = number;
-            }
             var row = details[number - 1];
             string active = row != null && row.Length > 16 ? row[16] : null;
-            int selection;
-            if (active == "main") selection = 0;
-            else if (active == "stone") selection = 1;
-            else if (!scriptChoiceByProfile.TryGetValue(number, out selection)) selection = 0;
-            syncingScriptChoice = true;
-            try { if (scriptChoice.SelectedIndex != selection) scriptChoice.SelectedIndex = selection; }
-            finally { syncingScriptChoice = false; }
+            if (active == "main") scriptChoice.SelectedIndex = 0;
+            else if (active == "stone") scriptChoice.SelectedIndex = 1;
+            else scriptChoice.SelectedIndex = -1;
             if (active == "main") activeScriptStatus.Text = "\u0110ang ch\u1ea1y: Auto t\u1ed5ng";
             else if (active == "stone") activeScriptStatus.Text = "\u0110ang ch\u1ea1y: Auto qu\u00e1i";
             else if (active == "both") activeScriptStatus.Text = "\u0110ang ch\u1ea1y: Auto t\u1ed5ng + Auto qu\u00e1i";
@@ -635,6 +612,7 @@ namespace ChromeGridApp
         private async Task RunSelectedScript(bool stop)
         {
             if (busy) { status.Text = "Đang cập nhật; vui lòng bấm lại."; return; }
+            if (scriptChoice.SelectedIndex < 0 || scriptChoice.SelectedIndex > 1) { status.Text = "Profile này không có Auto tổng hoặc Auto quái đang chạy; hãy chọn script muốn bật trước."; return; }
             int selected = profileChoice.SelectedIndex;
             if (stop && selected == 0) { status.Text = "Hãy chọn một profile cụ thể trước khi dừng script."; return; }
             bool main = scriptChoice.SelectedIndex == 0;
